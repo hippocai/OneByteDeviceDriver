@@ -36,17 +36,21 @@ int onebyte_release(struct inode *inode, struct file *filep)
 
 ssize_t onebyte_read(struct file *filep, char *buf, size_t count, loff_t *f_pos)
 {
-	ssize_t bytes_read = 0;
-	if(onebyte_data){
-		put_user(*onebyte_data,buf);
+	int bytes_read = 0;
+	
+	if(onebyte_data&&!(*f_pos)){
+		char info=*(onebyte_data);
+		put_user(info,buf);
 		++bytes_read;	
+		++(*f_pos);
 	}
+
 	return bytes_read;
 }
 
 ssize_t onebyte_write(struct file *filep, const char *buf, size_t count, loff_t *f_pos)
 {
-printk(KERN_ALERT "Sorry, this operation isn't supported.\n");
+printk(KERN_ALERT "Sorry, this operation isn't supported.%s,\n",buf);
 return -EINVAL;
 }
 
