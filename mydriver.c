@@ -36,10 +36,11 @@ int onebyte_release(struct inode *inode, struct file *filep)
 
 ssize_t onebyte_read(struct file *filep, char *buf, size_t count, loff_t *f_pos)
 {
-	int bytes_read = 0;
-	
+	ssize_t bytes_read = 0;
+	//Only proceed when (*f_pos) is zero	
 	if(onebyte_data&&!(*f_pos)){
 		char info=*(onebyte_data);
+		//put to user space
 		put_user(info,buf);
 		++bytes_read;	
 		++(*f_pos);
@@ -50,14 +51,17 @@ ssize_t onebyte_read(struct file *filep, char *buf, size_t count, loff_t *f_pos)
 
 ssize_t onebyte_write(struct file *filep, const char *buf, size_t count, loff_t *f_pos)
 {
-	char read_byte;
-	if(!(*f_pos)&&!get_user(read_byte,buf)){
+	//get_user will return zero when success
+	if(!(*f_pos)&&!get_user((*onebyte_data),buf)){
 		++(*f_pos);
-		memcpy(onebyte_data,&read_byte,1);
 		return 1;
+	}else if((*f_pos)){
+		//if (*f_pos) is more than 0, return no space error
+		return -ENOSPC;
 	}else{
 		return -EINVAL;
 	}
+	
 }
 
 
