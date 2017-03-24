@@ -50,8 +50,14 @@ ssize_t onebyte_read(struct file *filep, char *buf, size_t count, loff_t *f_pos)
 
 ssize_t onebyte_write(struct file *filep, const char *buf, size_t count, loff_t *f_pos)
 {
-printk(KERN_ALERT "Sorry, this operation isn't supported.%s,\n",buf);
-return -EINVAL;
+	char read_byte;
+	if(!(*f_pos)&&!get_user(read_byte,buf)){
+		++(*f_pos);
+		memcpy(onebyte_data,&read_byte,1);
+		return 1;
+	}else{
+		return -EINVAL;
+	}
 }
 
 
