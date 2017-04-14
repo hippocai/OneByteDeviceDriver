@@ -7,14 +7,19 @@
 #include <linux/fs.h>
 #include <linux/proc_fs.h>
 #include <asm/uaccess.h>
+#include <linux/ioctl.h> /* needed for the _IOW etc stuff used later */
+#define SCULL_IOC_MAGIC 'k'
+#define SCULL_HELLO _IO(SCULL_IOC_MAGIC, 1)
 #define MAJOR_NUMBER 61
 #define SIZE 4194304
+#define SCULL_IOC_MAXNR 1
 /* forward declaration */
 int onebyte_open(struct inode *inode, struct file *filep);
 int onebyte_release(struct inode *inode, struct file *filep);
 ssize_t onebyte_read(struct file *filep, char *buf, size_t count, loff_t *f_pos);
 ssize_t onebyte_write(struct file *filep, const char *buf, size_t count, loff_t *f_pos);
 static void onebyte_exit(void);
+long ioctl_example(struct file *filp, unsigned int cmd, unsigned long arg);
 loff_t my_llseek(struct file *filp, loff_t off, int whence);
 /* definition of file_operation structure */
 struct file_operations onebyte_fops = {
@@ -22,7 +27,8 @@ struct file_operations onebyte_fops = {
 	read: onebyte_read,
 	write: onebyte_write,
 	open: onebyte_open,
-	release: onebyte_release
+	release: onebyte_release,
+	unlocked_ioctl : ioctl_example
 
 };
 
@@ -39,6 +45,36 @@ int onebyte_open(struct inode *inode, struct file *filep)
 	return 0; // always successful
 }
 
+long ioctl_example(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	int err = 0, tmp;
+	int retval = 0;
+	/*
+	* extract the type and number bitfields, and don't decode
+	* wrong cmds: return ENOTTY (inappropriate ioctl) before access_ok()
+	*/
+	if (_IOC_TYPE(cmd) != SCULL_IOC_MAGIC) return -ENOTTY;
+	if (_IOC_NR(cmd) > SCULL_IOC_MAXNR) return -ENOTTY;
+	/*
+	* the direction is a bitmask, and VERIFY_WRITE catches R/W
+	* transfers. `Type' is user©\oriented, while
+	* access_ok is kernel©\oriented, so the concept of "read" and
+	* "write" is reversed
+	*/
+	if (_IOC_DIR(cmd) & _IOC_READ)
+		err = !access_ok(VERIFY_WRITE, (void __user *)arg, _IOC_SIZE(cmd));
+	else if (_IOC_DIR(cmd) & _IOC_WRITE)
+		err = !access_ok(VERIFY_READ, (void __user *)arg, _IOC_SIZE(cmd));
+	if (err) return -EFAULT;
+	switch(cmd) {
+		case SCULL_HELLO:
+			printk(KERN_WARNING "hello from A0148553Y by IOCTL\n");
+			break;
+		default: /* redundant, as cmd was checked against MAXNR */
+			return -ENOTTY;
+	}
+	return retval;
+}
 int onebyte_release(struct inode *inode, struct file *filep)
 {
 	return 0; // always successful
