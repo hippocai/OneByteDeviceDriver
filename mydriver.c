@@ -15,13 +15,15 @@ int onebyte_release(struct inode *inode, struct file *filep);
 ssize_t onebyte_read(struct file *filep, char *buf, size_t count, loff_t *f_pos);
 ssize_t onebyte_write(struct file *filep, const char *buf, size_t count, loff_t *f_pos);
 static void onebyte_exit(void);
-
+loff_t my_llseek(struct file *filp, loff_t off, int whence);
 /* definition of file_operation structure */
 struct file_operations onebyte_fops = {
+	llseek:my_llseek,
 	read: onebyte_read,
 	write: onebyte_write,
 	open: onebyte_open,
 	release: onebyte_release
+
 };
 
 struct four_byte_data{
@@ -42,6 +44,32 @@ int onebyte_release(struct inode *inode, struct file *filep)
 	return 0; // always successful
 }
 
+loff_t my_llseek(struct file *filp, loff_t off, int whence){
+	  	loff_t newpos;
+
+        switch(whence)
+        {
+        case 0: /* SEEK_SET */
+                newpos = off;
+                break;
+
+        case 1: /* SEEK_CUR */
+                newpos = filp->f_pos + off;
+                break;
+
+        case 2: /* SEEK_END */
+                newpos = gb_fbd->count-1 + off;
+                break;
+
+        default: /* can't happen */
+                return -EINVAL;
+        }
+        if (newpos < 0||newpos>=gb_fbd->count){
+                return -EINVAL;
+		}
+        filp->f_pos = newpos;
+        return newpos;
+}
 ssize_t onebyte_read(struct file *filep, char *buf, size_t count, loff_t *f_pos)
 {
 	ssize_t bytes_read = 0;
@@ -67,20 +95,25 @@ ssize_t onebyte_write(struct file *filep, const char *buf, size_t count, loff_t 
 		return -ENOSPC;
 	}
 	char *dataArr=gb_fbd->data;
-	if((*f_pos<SIZE)&&count&&!get_user((dataArr[*f_pos]),buf)){
+	size_t byte_read=0;
+	printk(KERN_ALERT "DEBUG FPOS:%ld\n",*f_pos);
+	printk(KERN_ALERT "DEBUG count:%ld\n",count);
+	while((*f_pos<SIZE)&&!get_user((dataArr[*f_pos]),buf)&&count){
 		++(*f_pos);
+		++buf;
 		gb_fbd->count=*f_pos;
-		return 1;
-	}else if((*f_pos)>=SIZE){
+		++byte_read;
+		--count;
+	}
+	
+	printk(KERN_ALERT "Readed Bytes:%ld\n",byte_read);
+	 if(count>0){
 		//if (*f_pos) is more than 0, return no space error
 		return -ENOSPC;
-	}else if(!count){
-		//All Byte reads
-		printk(KERN_ALERT "Readed Byte:%ld\n",gb_fbd->count);
 		
-		return 0;
 	}else{
-		return -EINVAL;
+		
+		return byte_read;
 	}
 	
 }
